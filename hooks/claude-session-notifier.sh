@@ -23,8 +23,16 @@ BIN="$HOME/.claude/hooks/bin/claude-banner"
 cwd=$(cat | jq -r '.cwd // "."' 2>/dev/null || echo ".")
 name=$(basename "$cwd")
 
-# shellcheck disable=SC2059
-message=$(printf "$TEMPLATE" "$name")
+# The folder name is untrusted input: it can come from a branch name (via
+# `git worktree add`), and on the osascript fallback path it would otherwise be
+# interpolated into an AppleScript string, where a crafted name could break out and
+# run commands. Allow only benign characters and cap the length.
+name=$(printf '%s' "$name" | LC_ALL=C tr -c 'A-Za-z0-9._ -' '_' | cut -c1-64)
+[[ -z "$name" ]] && name="claude"
+
+# Plain string substitution rather than printf: the template is user-supplied, and
+# treating it as a format string invites surprises for no benefit.
+message="${TEMPLATE//%s/$name}"
 
 # Audible signal first: it needs no notification permission, so it works even if
 # the visual path is broken.
