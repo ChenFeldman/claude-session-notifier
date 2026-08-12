@@ -76,6 +76,29 @@ registering a duplicate.
 
 Removes only its own hook entry, backing up `settings.json` first.
 
+## Windows
+
+> ⚠️ **Untested — needs a volunteer.** The Windows implementation is written and CI
+> parses it, but **nobody has yet confirmed a banner actually appeared on a Windows
+> screen.** It is not on `main` for that reason. If you can try it, please report back
+> in the issues — that is the one thing blocking a merge.
+
+```powershell
+git clone -b windows-support https://github.com/ChenFeldman/claude-session-notifier.git
+cd claude-session-notifier
+.\install.ps1        # or .\install.ps1 -DryRun first
+```
+
+Same design, ported: a borderless WPF window rather than a Windows toast. Toasts need
+an AUMID registration to appear from a console process and fail silently without one —
+the same trap as `osascript` on macOS, so the same answer applies.
+
+Requires Windows PowerShell 5.1+ (ships with Windows) and Claude Code. **No other
+dependencies** — `ConvertFrom-Json` and WPF are both built in, so unlike the macOS
+version there is no `jq` or compiler to install.
+
+`.\doctor.ps1` diagnoses it; `.\uninstall.ps1` removes it.
+
 ## Configuration
 
 Environment variables, e.g. in `~/.zshrc`:

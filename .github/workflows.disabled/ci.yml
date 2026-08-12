@@ -2,11 +2,11 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, windows-support]
   pull_request:
 
 jobs:
-  build:
+  macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,3 +29,42 @@ jobs:
         run: |
           mkdir -p "$HOME/.claude"
           ./install.sh --dry-run
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PowerShell syntax check
+        shell: powershell
+        run: |
+          $files = @(
+            'install.ps1', 'uninstall.ps1', 'doctor.ps1',
+            'hooks\claude-session-notifier.ps1', 'src-windows\claude-banner.ps1'
+          )
+          $failed = $false
+          foreach ($f in $files) {
+            $errors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile(
+                      (Resolve-Path $f), [ref]$null, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              Write-Host "FAIL $f" -ForegroundColor Red
+              $errors | ForEach-Object { Write-Host "     $($_.Message)" }
+              $failed = $true
+            } else {
+              Write-Host "ok   $f"
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: PSScriptAnalyzer
+        shell: powershell
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck
+          Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error -EnableExit
+
+      - name: Installer preflight (dry run)
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude" | Out-Null
+          .\install.ps1 -DryRun
