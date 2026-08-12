@@ -16,14 +16,14 @@ jobs:
 
       - name: Shell syntax check
         run: |
-          for f in install.sh uninstall.sh doctor.sh hooks/claude-session-banner.sh; do
+          for f in install.sh uninstall.sh doctor.sh hooks/claude-session-notifier.sh; do
             bash -n "$f" && echo "ok  $f"
           done
 
       - name: Shellcheck
         run: |
           brew install shellcheck
-          shellcheck install.sh uninstall.sh doctor.sh hooks/claude-session-banner.sh
+          shellcheck install.sh uninstall.sh doctor.sh hooks/claude-session-notifier.sh
 
       - name: Installer preflight (dry run)
         run: |

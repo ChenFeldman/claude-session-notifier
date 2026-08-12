@@ -12,9 +12,9 @@ CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 HOOKS_DIR="$CLAUDE_DIR/hooks"
 BIN_DIR="$HOOKS_DIR/bin"
 SETTINGS="$CLAUDE_DIR/settings.json"
-SCRIPT_DEST="$HOOKS_DIR/claude-session-banner.sh"
+SCRIPT_DEST="$HOOKS_DIR/claude-session-notifier.sh"
 HOOK_CMD="bash $SCRIPT_DEST"
-MARKER="claude-session-banner"     # how we recognise our own hook entry
+MARKER="claude-session-notifier"     # how we recognise our own hook entry
 
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
@@ -69,7 +69,7 @@ swiftc -O -o "$BIN_DIR/claude-banner" "$REPO_DIR/src/banner.swift" \
   || fail "compile failed — please open an issue with the output above."
 ok "compiled $BIN_DIR/claude-banner"
 
-install -m 0755 "$REPO_DIR/hooks/claude-session-banner.sh" "$SCRIPT_DEST"
+install -m 0755 "$REPO_DIR/hooks/claude-session-notifier.sh" "$SCRIPT_DEST"
 ok "installed $SCRIPT_DEST"
 
 # ── Register the hook ────────────────────────────────────────────────────────

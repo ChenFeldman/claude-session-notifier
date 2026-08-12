@@ -1,4 +1,4 @@
-# claude-session-banner
+# claude-session-notifier
 
 Get told when a Claude Code session finishes — with a banner that says **which** one.
 
@@ -53,8 +53,8 @@ the diagnostic that distinguishes "not delivered" from "delivered but not drawn"
 ## Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/claude-session-banner.git
-cd claude-session-banner
+git clone https://github.com/ChenFeldman/claude-session-notifier.git
+cd claude-session-notifier
 ./install.sh
 ```
 
@@ -96,7 +96,7 @@ export CLAUDE_BANNER_DURATION=8
 ```
 Claude finishes a turn
   └─ Stop hook  (~/.claude/settings.json, user scope → every project)
-       └─ claude-session-banner.sh
+       └─ claude-session-notifier.sh
             ├─ reads { "cwd": ... } from stdin  →  basename  →  "oz-A"
             ├─ afplay Glass.aiff                    (needs no permission)
             └─ claude-banner "oz-A finished" 5 0

@@ -6,14 +6,14 @@ set -euo pipefail
 
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 SETTINGS="$CLAUDE_DIR/settings.json"
-SCRIPT="$CLAUDE_DIR/hooks/claude-session-banner.sh"
+SCRIPT="$CLAUDE_DIR/hooks/claude-session-notifier.sh"
 BIN="$CLAUDE_DIR/hooks/bin/claude-banner"
-MARKER="claude-session-banner"
+MARKER="claude-session-notifier"
 
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 fail() { printf '\n  \033[31m✗ %s\033[0m\n\n' "$*" >&2; exit 1; }
 
-printf '\nRemoving claude-session-banner\n\n'
+printf '\nRemoving claude-session-notifier\n\n'
 
 command -v jq >/dev/null 2>&1 || fail "jq is needed to edit settings.json safely."
 

@@ -9,14 +9,14 @@ set -uo pipefail
 
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 SETTINGS="$CLAUDE_DIR/settings.json"
-SCRIPT="$CLAUDE_DIR/hooks/claude-session-banner.sh"
+SCRIPT="$CLAUDE_DIR/hooks/claude-session-notifier.sh"
 BIN="$CLAUDE_DIR/hooks/bin/claude-banner"
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
 bad()  { printf '  \033[31m✗\033[0m %s\n' "$*"; }
 
-printf '\nclaude-session-banner — doctor\n\n'
+printf '\nclaude-session-notifier — doctor\n\n'
 
 # 1. Dependencies
 command -v jq     >/dev/null 2>&1 && pass "jq present" || bad "jq missing → brew install jq"
@@ -28,13 +28,13 @@ command -v afplay >/dev/null 2>&1 && pass "afplay present" || warn "afplay missi
 
 # 3. Hook registration
 if [[ -f "$SETTINGS" ]] && command -v jq >/dev/null 2>&1; then
-  if jq -e '.hooks.Stop[]?.hooks[]?.command | select(test("claude-session-banner"))' \
+  if jq -e '.hooks.Stop[]?.hooks[]?.command | select(test("claude-session-notifier"))' \
        "$SETTINGS" >/dev/null 2>&1; then
     pass "Stop hook registered in settings.json"
   else
     bad "Stop hook NOT registered → ./install.sh"
   fi
-  count=$(jq '[.hooks.Stop[]?.hooks[]?.command | select(test("claude-session-banner"))] | length' \
+  count=$(jq '[.hooks.Stop[]?.hooks[]?.command | select(test("claude-session-notifier"))] | length' \
             "$SETTINGS" 2>/dev/null || echo 0)
   [[ "${count:-0}" -gt 1 ]] && warn "registered $count times — you will get duplicate banners"
 else
