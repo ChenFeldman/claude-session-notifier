@@ -118,6 +118,26 @@ Gatekeeper-quarantined and refuse to run without notarization.
 It walks the pipeline stage by stage and reports where it stops — dependencies,
 installed files, hook registration, and whether the binary can draw at all.
 
+## Alternatives
+
+**[cmux](https://cmux.com)** solves the same problem far more thoroughly: a native
+macOS terminal built for running coding agents in parallel, with a workspace sidebar,
+git branch and PR status per session, an embedded browser, a socket API, and
+notification rings when an agent needs you. Open source (GPL-3.0, with a commercial
+license available).
+
+The difference is what you give up to get it. cmux is a terminal you **switch to**;
+this is a hook you **add** to the terminal you already use. If you're open to changing
+terminals, cmux will serve you better than this ever will — go use it.
+
+This exists for the other case: you like iTerm2 (or Terminal, Ghostty, WezTerm, tmux)
+and want one specific thing — to know which session just finished — without replacing
+your setup to get it. It's ~600 lines, MIT, touches one config file, and
+`./uninstall.sh` removes it completely.
+
+[docs/why-osascript-fails.md](docs/why-osascript-fails.md) is useful either way: it
+applies to any macOS notification hook, whatever tool you end up using.
+
 ## Known limitations
 
 Honest list. These are real and unfixed in v0.1.
