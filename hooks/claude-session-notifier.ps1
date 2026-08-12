@@ -33,12 +33,15 @@ try {
 }
 
 # The folder name is untrusted input: it can come from a branch name (via
-# `git worktree add`), and it is interpolated into the argument string handed to
-# Start-Process, where a crafted name could inject extra arguments. Allow only benign
-# characters and cap the length.
-$name = ($name -replace '[^A-Za-z0-9._ -]', '_')
+# `git worktree add`), and branch names can come from a pull request. Strip control
+# characters and cap the length, but keep Unicode — folder names in Hebrew, Japanese,
+# or with emoji are legitimate, and replacing them with underscores would make the
+# banner useless for anyone not working in ASCII. Injection is handled where it
+# actually matters: the argument string built for Start-Process below is escaped at
+# the point of use.
+$name = ($name -replace '[\x00-\x1F]', '')
 if ($name.Length -gt 64) { $name = $name.Substring(0, 64) }
-if ([string]::IsNullOrWhiteSpace($name)) { $name = 'claude' }
+if ([string]::IsNullOrWhiteSpace($name) -or $name -eq '.') { $name = 'claude' }
 
 # Plain replacement rather than -f: the template is user-supplied, and treating it as
 # a .NET format string turns a stray brace into a runtime error.
@@ -62,9 +65,16 @@ if (Test-Path $bannerScript) {
         $slot = $running.Count
     } catch { }
 
+    # SECURITY: -ArgumentList is a string handed to a command-line parser, so a quote
+    # inside $message would end the argument and let the rest be read as further
+    # arguments. Escape it here, at the point of use. Backslash first, then quote —
+    # reversing the order would double-escape.
+    $safe = $message -replace '\\', '\\\\'
+    $safe = $safe -replace '"', '\"'
+
     Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -ArgumentList @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$bannerScript`"",
-        '-Message', "`"$message`"", '-Duration', $duration, '-Slot', $slot
+        '-Message', "`"$safe`"", '-Duration', $duration, '-Slot', $slot
     )
 } else {
     # Fallback: a message box is ugly and modal, but it is at least visible. Toasts are

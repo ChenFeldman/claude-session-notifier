@@ -27,8 +27,16 @@ name=$(basename "$cwd")
 # `git worktree add`), and on the osascript fallback path it would otherwise be
 # interpolated into an AppleScript string, where a crafted name could break out and
 # run commands. Allow only benign characters and cap the length.
-name=$(printf '%s' "$name" | LC_ALL=C tr -c 'A-Za-z0-9._ -' '_' | cut -c1-64)
-[[ -z "$name" ]] && name="claude"
+# Control characters are stripped (they garble the display) and the length is capped.
+# Unicode is preserved deliberately: folder names in Hebrew, Japanese, or with emoji
+# are legitimate, and replacing them with underscores made the banner useless for
+# anyone not working in ASCII. Injection is prevented where it actually matters — the
+# osascript call below escapes at the point of use, and the banner binary receives its
+# text through argv, where no character is special.
+name=$(printf '%s' "$name" | LC_ALL=C tr -d '\000-\037')
+name="${name:0:64}"
+# "." and "/" both mean we never got a usable path.
+[[ -z "$name" || "$name" == "." || "$name" == "/" ]] && name="claude"
 
 # Plain string substitution rather than printf: the template is user-supplied, and
 # treating it as a format string invites surprises for no benefit.
@@ -48,5 +56,12 @@ if [[ -x "$BIN" ]]; then
 else
   # Fallback if the binary is missing. Note this path is unreliable: macOS may
   # discard the notification while osascript still exits 0.
-  osascript -e "display notification \"$message\" with title \"Claude Code\"" 2>/dev/null
+  #
+  # SECURITY: this is the one place the message is interpolated into a language that
+  # can execute commands, so escape it here at the point of use. Backslash first, then
+  # double quote — reversing the order would double-escape. Without this, a folder
+  # named  evil" & (do shell script "...") & "x  would break out of the string.
+  escaped=${message//\\/\\\\}
+  escaped=${escaped//\"/\\\"}
+  osascript -e "display notification \"$escaped\" with title \"Claude Code\"" 2>/dev/null
 fi
