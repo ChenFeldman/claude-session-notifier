@@ -16,6 +16,12 @@ corner naming the folder that just finished, plus a sound.
 > **v0.1** — works, but young. It was extracted from a working setup on one Mac
 > (macOS 26.5.2, Apple Silicon) and has not been tested widely. Please read
 > [Known limitations](#known-limitations) before relying on it.
+>
+> **Windows?** An implementation exists on the
+> [`windows-support`](https://github.com/ChenFeldman/claude-session-notifier/tree/windows-support)
+> branch but has never been run on a real Windows machine, so it is not merged.
+> If you can test it, [issue #1](https://github.com/ChenFeldman/claude-session-notifier/issues/1)
+> is the one thing blocking it.
 
 ## Why not just use `osascript`?
 
