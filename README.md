@@ -148,10 +148,7 @@ since single-machine testing is this release's weakest point.
 
 ## Credits
 
-**Asaf Ambar** — for the idea behind this and for pushing it until it actually worked
-on screen, not just until the command exited 0. That insistence is the reason this
-draws its own window instead of shipping the `osascript` one-liner that silently
-fails on most Macs.
+Thank you Asaf Ambar for being part of the idea and thinking how to create it together.
 
 ## License
 
