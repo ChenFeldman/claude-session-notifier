@@ -163,6 +163,27 @@ applies to any macOS notification hook, whatever tool you end up using.
 
 Thank you Ido Koren for giving the cmux feedback.
 
+## Security
+
+What this code does and doesn't do, so you can judge it rather than trust it:
+
+- **No network access.** Nothing here makes a request. Nothing phones home.
+- **Nothing is downloaded at install time.** The macOS binary is compiled from the
+  source in this repo, on your machine.
+- **Nothing is logged.** The hook receives a payload containing `cwd` and
+  `session_id`; it reads `cwd`, uses it, and discards it.
+- **The only file modified outside its own directory is `~/.claude/settings.json`**,
+  which is backed up before every change, and `./uninstall.sh` reverses.
+- **The folder name is treated as untrusted.** It reaches a display path, and can be
+  attacker-influenced — `git worktree add` derives a directory name from a branch
+  name, and branch names can come from pull requests. It is filtered to
+  `[A-Za-z0-9._ -]` and capped at 64 characters before use. Without that filter, a
+  directory named `evil" & (do shell script "...") & "x` would inject into the
+  AppleScript fallback path on macOS, and into the process arguments on Windows.
+  Both were real and are fixed; see [#2](../../issues/2).
+
+If you find something, please open an issue.
+
 ## Known limitations
 
 Honest list. These are real and unfixed in v0.1.

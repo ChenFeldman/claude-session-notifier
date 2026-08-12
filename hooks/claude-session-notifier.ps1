@@ -32,7 +32,17 @@ try {
     # Malformed or absent payload: still notify, just without a specific name.
 }
 
-$message = $template -f $name
+# The folder name is untrusted input: it can come from a branch name (via
+# `git worktree add`), and it is interpolated into the argument string handed to
+# Start-Process, where a crafted name could inject extra arguments. Allow only benign
+# characters and cap the length.
+$name = ($name -replace '[^A-Za-z0-9._ -]', '_')
+if ($name.Length -gt 64) { $name = $name.Substring(0, 64) }
+if ([string]::IsNullOrWhiteSpace($name)) { $name = 'claude' }
+
+# Plain replacement rather than -f: the template is user-supplied, and treating it as
+# a .NET format string turns a stray brace into a runtime error.
+$message = $template.Replace('{0}', $name)
 
 # Audible signal first: it needs no permission, so it works even if the visual path
 # is broken.

@@ -13,7 +13,7 @@ HOOKS_DIR="$CLAUDE_DIR/hooks"
 BIN_DIR="$HOOKS_DIR/bin"
 SETTINGS="$CLAUDE_DIR/settings.json"
 SCRIPT_DEST="$HOOKS_DIR/claude-session-notifier.sh"
-HOOK_CMD="bash $SCRIPT_DEST"
+HOOK_CMD="bash \"$SCRIPT_DEST\""   # quoted: $HOME may contain spaces
 MARKER="claude-session-notifier"     # how we recognise our own hook entry
 
 DRY_RUN=0
@@ -102,7 +102,7 @@ ok "registered Stop hook in settings.json"
 # ── Verify ───────────────────────────────────────────────────────────────────
 # End on proof, not a promise. If no banner appears, you find out now.
 
-echo '{"cwd":"'"$PWD"'"}' | bash "$SCRIPT_DEST" || true
+jq -n --arg cwd "$PWD" '{cwd:$cwd}' | bash "$SCRIPT_DEST" || true
 
 cat <<EOF
 
