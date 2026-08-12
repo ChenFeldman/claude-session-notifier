@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile the banner
+        run: swiftc -O -o /tmp/claude-banner src/banner.swift
+
+      - name: Shell syntax check
+        run: |
+          for f in install.sh uninstall.sh doctor.sh hooks/claude-session-banner.sh; do
+            bash -n "$f" && echo "ok  $f"
+          done
+
+      - name: Shellcheck
+        run: |
+          brew install shellcheck
+          shellcheck install.sh uninstall.sh doctor.sh hooks/claude-session-banner.sh
+
+      - name: Installer preflight (dry run)
+        run: |
+          mkdir -p "$HOME/.claude"
+          ./install.sh --dry-run
