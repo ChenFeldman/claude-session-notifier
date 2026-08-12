@@ -138,6 +138,8 @@ your setup to get it. It's ~600 lines, MIT, touches one config file, and
 [docs/why-osascript-fails.md](docs/why-osascript-fails.md) is useful either way: it
 applies to any macOS notification hook, whatever tool you end up using.
 
+Thank you Ido Koren for giving the cmux feedback.
+
 ## Known limitations
 
 Honest list. These are real and unfixed in v0.1.
