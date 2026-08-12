@@ -146,6 +146,13 @@ Honest list. These are real and unfixed in v0.1.
 Issues and PRs welcome — especially reports from other macOS versions and hardware,
 since single-machine testing is this release's weakest point.
 
+## Credits
+
+**Asaf Ambar** — for the idea behind this and for pushing it until it actually worked
+on screen, not just until the command exited 0. That insistence is the reason this
+draws its own window instead of shipping the `osascript` one-liner that silently
+fails on most Macs.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
