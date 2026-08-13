@@ -48,11 +48,33 @@ if [[ "$SOUND" != "none" && -f "$SOUND" ]]; then
   afplay "$SOUND" 2>/dev/null &
 fi
 
+# Click-to-focus: work out which tab this session is in, so clicking the banner can
+# jump back to it.
+#
+# iTerm2 exports ITERM_SESSION_ID and it is inherited all the way down into this hook.
+# Only the uuid after the "wNtNpN:" prefix is usable: those coordinates are fixed when
+# the session is created and go stale as soon as tabs are reordered or closed.
+#
+# The tty would work as a second handle, but it needs an ancestry walk — Claude Code
+# spawns hooks with no controlling terminal, so `ps -o tty= -p $$` here reports "??".
+FOCUS_ARGS=()
+if [[ "${TERM_PROGRAM:-}" == "iTerm.app" && -n "${ITERM_SESSION_ID:-}" ]]; then
+  session_uuid="${ITERM_SESSION_ID#*:}"
+  # SECURITY: validated before it can reach AppleScript. Hex and dashes only, so there
+  # is no string to break out of downstream. A non-matching value is simply dropped and
+  # the banner stays click-through.
+  if [[ "$session_uuid" =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]]; then
+    FOCUS_ARGS=(--focus-iterm2 "$session_uuid")
+  fi
+fi
+
 if [[ -x "$BIN" ]]; then
   # Stack below any banner already on screen so parallel sessions don't overlap.
   # Known limitation: slots are not reclaimed as banners fade — see README.
   slot=$(pgrep -x claude-banner 2>/dev/null | wc -l | tr -d ' ')
-  "$BIN" "$message" "$DURATION" "$slot"
+  # ${a[@]+"${a[@]}"} not "${a[@]}": macOS ships bash 3.2, where an empty array under
+  # `set -u` is treated as unbound and aborts the hook.
+  "$BIN" "$message" "$DURATION" "$slot" ${FOCUS_ARGS[@]+"${FOCUS_ARGS[@]}"}
 else
   # Fallback if the binary is missing. Note this path is unreliable: macOS may
   # discard the notification while osascript still exits 0.
