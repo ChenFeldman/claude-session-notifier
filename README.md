@@ -8,11 +8,13 @@ corner naming the session that just finished, plus a sound. Click the banner and
 takes you straight to the tab it came from.
 
 ```
-┌────────────────────────────────┐
-│  Claude Code  ·  click to focus│
-│  Fix the retry backoff         │
-└────────────────────────────────┘
+┌──────────────────────────────────┐
+│  ✳   Claude Code · click to focus│
+│      Fix the retry backoff       │
+└──────────────────────────────────┘
 ```
+
+The icon is the installed Claude app's own, read at runtime — nothing is bundled here.
 
 > **v0.1** — works, but young. It was extracted from a working setup on one Mac
 > (macOS 26.5.2, Apple Silicon) and has not been tested widely. Please read
@@ -52,6 +54,7 @@ the diagnostic that distinguishes "not delivered" from "delivered but not drawn"
 |---|---|
 | macOS | uses AppKit + `afplay`. No Linux/Windows support. |
 | [Claude Code](https://claude.com/claude-code) | must be installed (`~/.claude` must exist) |
+| Claude desktop app | *optional* — its icon is borrowed for the banner. Without it you get an SF Symbol instead. |
 | Xcode Command Line Tools | for `swiftc` — `xcode-select --install` |
 | [`jq`](https://jqlang.github.io/jq/) | to parse the hook payload — `brew install jq` |
 
@@ -111,9 +114,9 @@ requested for it.
 but the path it is handed, or if you prefer a short, stable label that never changes
 mid-session.
 
-Titles are longer than folder names and the banner does not auto-size, so a long title
-can clip — `export CLAUDE_BANNER_TEXT='%s'` buys back the width that `finished` costs.
-If the title cannot be read, the folder name is used.
+Titles run longer than folder names, so the banner sizes its height to the text rather
+than truncating it. If the title cannot be read — early in a session, before Claude has
+named it — the folder name is used instead.
 
 ## How it works
 
@@ -237,9 +240,10 @@ Honest list. These are real and unfixed in v0.1.
   may not be on the screen you are looking at.
 - **Tested on exactly one machine.** macOS 26.5.2, Apple Silicon, iTerm2, zsh. Older
   macOS and Intel Macs are unverified — reports welcome.
-- **Long messages clip, and titles make that likelier.** The window is a fixed 380×92
-  with no auto-sizing, and session titles are far longer than folder names.
-  `CLAUDE_BANNER_TEXT='%s'` helps; auto-sizing is the real fix and is not done.
+- **Stacked banners leave gaps.** Height now follows the text, so the stacking pitch has
+  to assume the tallest possible banner or a tall one would draw over a short one. Short
+  banners therefore sit further apart than they need to. Cosmetic, and the same lockfile
+  coordinator that would fix slot reclamation would fix this too.
 - **Click-to-focus is iTerm2 only.** Everywhere else the banner stays click-through.
   Terminal.app, WezTerm and tmux are all scriptable enough to support — nobody has
   written it yet. Ghostty, VS Code and IntelliJ cannot select a specific tab at all.

@@ -135,9 +135,30 @@ final class Banner {
 
     func show(_ text: String, duration: Double, slot: Int, focusUUID: String?) {
         guard let screen = NSScreen.main else { NSApp.terminate(nil); return }
-        let w: CGFloat = 380, h: CGFloat = 92
+        let w: CGFloat = 380
+
+        // Height follows the text instead of being fixed. Session titles are longer than
+        // folder names and the icon costs width, so a fixed 92 truncated real messages.
+        let iconSize: CGFloat = 28
+        let textX = 18 + iconSize + 12
+        let textW = w - textX - 18
+        let bodyFont = NSFont.systemFont(ofSize: 13)
+        let measured = (text as NSString).boundingRect(
+            with: NSSize(width: textW, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: bodyFont]).height
+        // chromeHeight is the fixed furniture: padding, the title row, and the gap under
+        // it. minHeight keeps short messages looking exactly as they did before.
+        let chromeHeight: CGFloat = 52
+        let minHeight: CGFloat = 92, maxHeight: CGFloat = 200
+        let bodyH = ceil(measured)
+        let h = min(maxHeight, max(minHeight, chromeHeight + bodyH))
+
         let vf = screen.visibleFrame
-        let y = vf.maxY - h - 16 - CGFloat(slot) * (h + 10)
+        // Stacking pitch uses maxHeight, not this banner's own height: heights now vary
+        // between banners, and pitching on the shorter one would let a tall neighbour
+        // overlap it. Costs a gap under short banners, which beats drawing over them.
+        let y = vf.maxY - h - 16 - CGFloat(slot) * (maxHeight + 10)
         let rect = NSRect(x: vf.maxX - w - 16, y: y, width: w, height: h)
 
         // .nonactivatingPanel matters: without it, clicking the banner activates this
@@ -163,10 +184,6 @@ final class Banner {
 
         // Icon on the left, text indented past it. Without this the banner announces
         // itself only in words, which is easy to miss in peripheral vision.
-        let iconSize: CGFloat = 28
-        let textX = 18 + iconSize + 12
-        let textW = w - textX - 18
-
         if let icon = claudeIcon() {
             let iconView = NSImageView(frame: NSRect(x: 18, y: (h - iconSize) / 2,
                                                     width: iconSize, height: iconSize))
@@ -184,9 +201,9 @@ final class Banner {
         title.frame = NSRect(x: textX, y: h - 30, width: textW, height: 16)
 
         let body = NSTextField(wrappingLabelWithString: text)
-        body.font = .systemFont(ofSize: 13)
+        body.font = bodyFont
         body.textColor = .labelColor
-        body.frame = NSRect(x: textX, y: 14, width: textW, height: h - 52)
+        body.frame = NSRect(x: textX, y: 14, width: textW, height: h - chromeHeight)
 
         blur.addSubview(title)
         blur.addSubview(body)
