@@ -89,9 +89,10 @@ stdin, `/`, an injection payload, custom `CLAUDE_BANNER_*` vars, and two banners
 
 ## Known limitations (documented in the README — keep them honest)
 
-`Stop` fires every turn end, not just on completion · banner slots are never reclaimed ·
-main display only · fixed 380×92 window clips long text · no unit tests · macOS needs
-`jq` · the `osascript` fallback is unreliable by design.
+`Stop` fires every turn end, not just on completion · banner slots are never reclaimed,
+and variable heights mean stacked banners leave gaps · main display only · click-to-focus
+is iTerm2-only and its first click asks for Automation consent · no unit tests · macOS
+needs `jq` · the `osascript` fallback is unreliable by design.
 
 ## Style
 
