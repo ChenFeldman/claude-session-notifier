@@ -26,18 +26,23 @@ if [[ -f "$SETTINGS" ]]; then
 
   TMP="$(mktemp)"
   # Drop only our own entries, then tidy up empty containers we may have created.
+  # Both events install.sh registers must be reversed, or an uninstall leaves half of
+  # itself behind pointing at a script that no longer exists.
   jq --arg marker "$MARKER" '
-    if (.hooks.Stop? | type) == "array" then
-      .hooks.Stop |= map(
-        select(((.hooks // []) | map(.command // "") | any(test($marker))) | not)
-      )
-      | if (.hooks.Stop | length) == 0 then del(.hooks.Stop) else . end
-      | if (.hooks | length) == 0 then del(.hooks) else . end
-    else . end
+    def unregister(event):
+      if (.hooks[event]? | type) == "array" then
+        .hooks[event] |= map(
+          select(((.hooks // []) | map(.command // "") | any(test($marker))) | not)
+        )
+        | if (.hooks[event] | length) == 0 then del(.hooks[event]) else . end
+      else . end;
+    unregister("Stop")
+    | unregister("Notification")
+    | if (.hooks? | type) == "object" and (.hooks | length) == 0 then del(.hooks) else . end
   ' "$SETTINGS" > "$TMP" || fail "failed to edit settings.json (original untouched)"
 
   mv "$TMP" "$SETTINGS"
-  ok "removed Stop hook from settings.json"
+  ok "removed Stop and Notification hooks from settings.json"
 fi
 
 rm -f "$SCRIPT" && ok "removed $SCRIPT"

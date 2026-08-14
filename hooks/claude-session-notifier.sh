@@ -1,21 +1,27 @@
 #!/bin/bash
-# Claude Code Stop hook — announce which session just finished a turn.
+# Claude Code hook — announce which session finished, or which one is waiting on you.
 #
-# Registered globally in ~/.claude/settings.json by install.sh, so it covers every
-# project and worktree. Claude Code sends the hook a JSON payload on stdin; `cwd`
-# is what tells us WHICH session finished.
+# Registered globally in ~/.claude/settings.json by install.sh on two events, so it
+# covers every project and worktree:
+#
+#   Stop          a turn ended                → "<name> finished"
+#   Notification  Claude is waiting on you    → "<name> needs you"
+#
+# Notification is the one that catches a session blocked on a permission prompt or a
+# question, which Stop cannot see: the turn has not ended, so Stop never fires.
 #
 # Configure with environment variables (export them in ~/.zshrc):
-#   CLAUDE_BANNER_SOUND     path to an .aiff, or "none" to stay silent
-#   CLAUDE_BANNER_DURATION  seconds the banner stays on screen (default 5)
-#   CLAUDE_BANNER_TEXT      message template; %s is replaced with the session name
-#   CLAUDE_BANNER_NAME_SOURCE  "title" (default) or "folder"
+#   CLAUDE_BANNER_SOUND          path to an .aiff, or "none" to stay silent
+#   CLAUDE_BANNER_SOUND_WAITING  sound for the waiting case, so you can tell the two
+#                                apart without looking
+#   CLAUDE_BANNER_DURATION       seconds the banner stays on screen (default 5)
+#   CLAUDE_BANNER_TEXT           finished template; %s is the session name
+#   CLAUDE_BANNER_TEXT_WAITING   waiting template; %s is the session name
+#   CLAUDE_BANNER_NAME_SOURCE    "title" (default) or "folder"
 
 set -uo pipefail
 
-SOUND="${CLAUDE_BANNER_SOUND:-/System/Library/Sounds/Glass.aiff}"
 DURATION="${CLAUDE_BANNER_DURATION:-5}"
-TEMPLATE="${CLAUDE_BANNER_TEXT:-%s finished}"
 NAME_SOURCE="${CLAUDE_BANNER_NAME_SOURCE:-title}"
 
 BIN="$HOME/.claude/hooks/bin/claude-banner"
@@ -27,6 +33,19 @@ payload=$(cat)
 # `cwd` rather than $CLAUDE_PROJECT_DIR, which is not reliably set for Stop hooks.
 cwd=$(printf '%s' "$payload" | jq -r '.cwd // "."' 2>/dev/null || echo ".")
 name=$(basename "$cwd")
+
+# Which event are we? Anything that is not Notification is treated as a turn ending, so
+# an unfamiliar event degrades to the original behaviour rather than going silent.
+event=$(printf '%s' "$payload" | jq -r '.hook_event_name // ""' 2>/dev/null || echo "")
+if [[ "$event" == "Notification" ]]; then
+  TEMPLATE="${CLAUDE_BANNER_TEXT_WAITING:-%s needs you}"
+  # A different default sound on purpose: "finished" and "blocked on you" want opposite
+  # reactions, and the whole point is knowing which without turning to look.
+  SOUND="${CLAUDE_BANNER_SOUND_WAITING:-/System/Library/Sounds/Ping.aiff}"
+else
+  TEMPLATE="${CLAUDE_BANNER_TEXT:-%s finished}"
+  SOUND="${CLAUDE_BANNER_SOUND:-/System/Library/Sounds/Glass.aiff}"
+fi
 
 # Name the session by Claude's own title. Several sessions in one repo share a folder
 # name, which is exactly when knowing which one finished matters most — so the title is

@@ -1,11 +1,12 @@
 # claude-session-notifier
 
-Get told when a Claude Code session finishes — with a banner that says **which** one.
+Get told when a Claude Code session finishes — or needs you — with a banner that says
+**which** one.
 
 Running Claude in three terminal tabs is great until you lose track of which one is
-waiting for you. This installs a `Stop` hook that draws a banner in your top-right
-corner naming the session that just finished, plus a sound. Click the banner and it
-takes you straight to the tab it came from.
+waiting for you. This installs hooks that draw a banner in your top-right corner naming
+the session that just finished — or the one blocked on a question — plus a sound. Click
+the banner and it takes you straight to the tab it came from.
 
 ```
 ┌──────────────────────────────────┐
@@ -58,7 +59,7 @@ the diagnostic that distinguishes "not delivered" from "delivered but not drawn"
 | Xcode Command Line Tools | for `swiftc` — `xcode-select --install` |
 | [`jq`](https://jqlang.github.io/jq/) | to parse the hook payload — `brew install jq` |
 
-`install.sh` checks all four and stops with the exact fix if one is missing.
+`install.sh` checks each of these and stops with the exact fix if one is missing.
 
 ## Install
 
@@ -74,9 +75,9 @@ works. Use `./install.sh --dry-run` to see what it would do first.
 
 Already-running Claude sessions need a restart (or open `/hooks` once) to pick it up.
 
-**Your settings are merged, not overwritten.** Existing `Stop` hooks are preserved,
-`settings.json` is backed up first, and re-running updates in place rather than
-registering a duplicate.
+**Your settings are merged, not overwritten.** Existing `Stop` and `Notification` hooks
+are preserved, `settings.json` is backed up first, and re-running updates in place rather
+than registering a duplicate.
 
 ## Uninstall
 
@@ -84,7 +85,7 @@ registering a duplicate.
 ./uninstall.sh
 ```
 
-Removes only its own hook entry, backing up `settings.json` first.
+Removes only its own entries — from both events — backing up `settings.json` first.
 
 ## Configuration
 
@@ -93,8 +94,10 @@ Environment variables, e.g. in `~/.zshrc`:
 | Variable | Default | Meaning |
 |---|---|---|
 | `CLAUDE_BANNER_SOUND` | `/System/Library/Sounds/Glass.aiff` | any `.aiff`, or `none` for silence |
+| `CLAUDE_BANNER_SOUND_WAITING` | `/System/Library/Sounds/Ping.aiff` | sound when a session is waiting on you |
 | `CLAUDE_BANNER_DURATION` | `5` | seconds on screen |
 | `CLAUDE_BANNER_TEXT` | `%s finished` | `%s` becomes the session name |
+| `CLAUDE_BANNER_TEXT_WAITING` | `%s needs you` | shown when a session is blocked on you |
 | `CLAUDE_BANNER_NAME_SOURCE` | `title` | `title` for Claude's own session title, `folder` for the directory name |
 
 ```bash
@@ -120,15 +123,27 @@ named it — the folder name is used instead.
 
 ## How it works
 
+Two events are registered, because they answer different questions:
+
+| Event | Fires when | Banner says |
+|---|---|---|
+| `Stop` | a turn ended | `<name> finished` |
+| `Notification` | Claude is blocked on you — permission prompt, question, or idle | `<name> needs you` |
+
+`Notification` matters more than it sounds. A session that stops to ask you something has
+**not** ended its turn, so `Stop` never fires and the old behaviour was silence at exactly
+the moment you were being waited on. The two cases get different default sounds so you can
+tell them apart without turning to look.
+
 ```
-Claude finishes a turn
-  └─ Stop hook  (~/.claude/settings.json, user scope → every project)
+Claude finishes a turn ── or ── blocks waiting on you
+  └─ Stop / Notification hook  (~/.claude/settings.json, user scope → every project)
        └─ claude-session-notifier.sh
-            ├─ reads { cwd, transcript_path } from stdin
+            ├─ reads { cwd, transcript_path, hook_event_name } from stdin
             │    ├─ last "ai-title" in the transcript  →  "Fix the retry backoff"
             │    └─ or basename of cwd                 →  "oz-A"
             ├─ resolves the tab from $ITERM_SESSION_ID  (iTerm2 only)
-            ├─ afplay Glass.aiff                    (needs no permission)
+            ├─ afplay Glass.aiff / Ping.aiff        (needs no permission)
             └─ claude-banner "Fix the retry backoff" 5 0 --focus-iterm2 <uuid>
                  └─ borderless NSPanel, .statusBar level, click → focus that tab
 ```
@@ -229,9 +244,10 @@ If you find something, please open an issue.
 
 Honest list. These are real and unfixed in v0.1.
 
-- **`Stop` fires on every turn end, not just task completion.** A session that stops
-  to ask you a question also rings. Usually what you want when babysitting several
-  sessions — but it is chattier than a single "all done" ping.
+- **`Stop` fires on every turn end, not just task completion.** Usually what you want when
+  babysitting several sessions — but it is chattier than a single "all done" ping. A session
+  that stops to ask you something now rings via `Notification` instead, with its own wording
+  and sound.
 - **Banner slots are not reclaimed.** Position is chosen by counting running banner
   processes. If several sessions finish in a staggered pattern, a banner can be
   placed lower than necessary, and with enough of them one can be drawn off-screen.
