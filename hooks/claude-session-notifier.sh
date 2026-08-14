@@ -8,20 +8,44 @@
 # Configure with environment variables (export them in ~/.zshrc):
 #   CLAUDE_BANNER_SOUND     path to an .aiff, or "none" to stay silent
 #   CLAUDE_BANNER_DURATION  seconds the banner stays on screen (default 5)
-#   CLAUDE_BANNER_TEXT      message template; %s is replaced with the folder name
+#   CLAUDE_BANNER_TEXT      message template; %s is replaced with the session name
+#   CLAUDE_BANNER_NAME_SOURCE  "title" (default) or "folder"
 
 set -uo pipefail
 
 SOUND="${CLAUDE_BANNER_SOUND:-/System/Library/Sounds/Glass.aiff}"
 DURATION="${CLAUDE_BANNER_DURATION:-5}"
 TEMPLATE="${CLAUDE_BANNER_TEXT:-%s finished}"
+NAME_SOURCE="${CLAUDE_BANNER_NAME_SOURCE:-title}"
 
 BIN="$HOME/.claude/hooks/bin/claude-banner"
 
-# `cwd` arrives as JSON on stdin. We use it rather than $CLAUDE_PROJECT_DIR, which
-# is not reliably set for Stop hooks.
-cwd=$(cat | jq -r '.cwd // "."' 2>/dev/null || echo ".")
+# Read the payload once: `cwd` is always needed, and the title path below needs
+# `transcript_path` out of the same stdin.
+payload=$(cat)
+
+# `cwd` rather than $CLAUDE_PROJECT_DIR, which is not reliably set for Stop hooks.
+cwd=$(printf '%s' "$payload" | jq -r '.cwd // "."' 2>/dev/null || echo ".")
 name=$(basename "$cwd")
+
+# Name the session by Claude's own title. Several sessions in one repo share a folder
+# name, which is exactly when knowing which one finished matters most — so the title is
+# the more useful default, and `folder` remains available for anyone who would rather
+# this hook read nothing but the path it is already handed.
+if [[ "$NAME_SOURCE" == "title" ]]; then
+  transcript=$(printf '%s' "$payload" | jq -r '.transcript_path // ""' 2>/dev/null || echo "")
+  if [[ -n "$transcript" && -f "$transcript" ]]; then
+    # Titles are revised as a session goes on, so the last entry is the current one.
+    title=$(grep '"type":"ai-title"' "$transcript" 2>/dev/null | tail -1 \
+              | jq -r '.aiTitle // ""' 2>/dev/null || echo "")
+    # Sanitised before it is allowed to win: a title is model-generated text, so it is
+    # less predictable than a folder name. If nothing survives, the folder name stands
+    # rather than degrading to the generic fallback.
+    title=$(printf '%s' "$title" | LC_ALL=C tr -d '\000-\037')
+    title="${title:0:64}"
+    [[ -n "$title" ]] && name="$title"
+  fi
+fi
 
 # The folder name is untrusted input: it can come from a branch name (via
 # `git worktree add`), and on the osascript fallback path it would otherwise be

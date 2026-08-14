@@ -50,7 +50,17 @@ Claude finishes a turn
 - **Merge `settings.json`, never overwrite.** Back it up, drop only entries matching the
   `claude-session-notifier` marker, stay idempotent on re-run.
 - **Compile on the user's machine.** A downloaded binary is Gatekeeper-quarantined.
-- **No network calls. No logging of the payload.** `session_id` is never read.
+- **No network calls. Nothing is ever written or logged.** The hook reads `cwd` and, when
+  `CLAUDE_BANNER_NAME_SOURCE=title` (the default), the last `ai-title` entry out of
+  `transcript_path`. Nothing else in the payload is touched — not `session_id`, not
+  `last_assistant_message`. Widening that set is a decision, not a refactor.
+- **`folder` must stay a real escape hatch.** Someone who sets it is asking this hook to
+  read nothing but the path it is handed. Keep that path free of transcript access.
+- **Validate the tab id, and never splice it into script text.** It comes from an
+  environment variable, so hook and binary both check it against hex-and-dashes, and it
+  reaches `osascript` through `argv`. Same discipline as the session name.
+- **No focus target means click-through.** The banner must not start intercepting clicks
+  for people it cannot help.
 
 ## Commands
 
