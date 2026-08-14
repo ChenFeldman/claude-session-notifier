@@ -86,18 +86,23 @@ BACKUP="$SETTINGS.backup.$(date +%Y%m%d%H%M%S)"
 cp "$SETTINGS" "$BACKUP"
 ok "backed up settings to $(basename "$BACKUP")"
 
+# Two events: Stop for "finished", Notification for "waiting on you". A session blocked
+# on a permission prompt or a question never fires Stop, because its turn has not ended.
 TMP="$(mktemp)"
 jq --arg cmd "$HOOK_CMD" --arg marker "$MARKER" '
+  def register(event):
+    .hooks[event] //= []
+    | .hooks[event] |= map(
+        select(((.hooks // []) | map(.command // "") | any(test($marker))) | not)
+      )
+    | .hooks[event] += [{ hooks: [{ type: "command", command: $cmd, async: true }] }];
   .hooks //= {}
-  | .hooks.Stop //= []
-  | .hooks.Stop |= map(
-      select(((.hooks // []) | map(.command // "") | any(test($marker))) | not)
-    )
-  | .hooks.Stop += [{ hooks: [{ type: "command", command: $cmd, async: true }] }]
+  | register("Stop")
+  | register("Notification")
 ' "$SETTINGS" > "$TMP" || fail "failed to update settings.json (original untouched)"
 
 mv "$TMP" "$SETTINGS"
-ok "registered Stop hook in settings.json"
+ok "registered Stop and Notification hooks in settings.json"
 
 # ── Verify ───────────────────────────────────────────────────────────────────
 # End on proof, not a promise. If no banner appears, you find out now.

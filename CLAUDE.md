@@ -1,7 +1,8 @@
 # claude-session-notifier — project guide for Claude
 
-A Claude Code `Stop` hook that draws a banner naming the session that just finished,
-so someone running several sessions in parallel knows which one wants them.
+A Claude Code hook that draws a banner naming the session that just finished, or the one
+blocked waiting on you, so someone running several sessions in parallel knows which one
+wants them.
 
 Small on purpose: ~600 lines, MIT, no runtime services. Keep it that way.
 
@@ -11,6 +12,7 @@ Small on purpose: ~600 lines, MIT, no runtime services. Keep it that way.
 install.sh / uninstall.sh / doctor.sh      macOS entry points
 src/banner.swift                           the HUD window (compiled at install time)
 hooks/claude-session-notifier.sh           the dispatcher: stdin JSON -> name -> banner
+                                           (registered on Stop AND Notification)
 docs/why-osascript-fails.md                why Notification Center is avoided
 .github/workflows.disabled/ci.yml          CI, parked until the token has `workflow` scope
 ```
@@ -23,14 +25,22 @@ real Windows** — see issue #1. Do not merge it on the strength of CI alone.
 ## The flow
 
 ```
-Claude finishes a turn
-  └─ Stop hook (~/.claude/settings.json, user scope -> every project)
+Claude finishes a turn ── or ── blocks waiting on the user
+  └─ Stop / Notification hook (~/.claude/settings.json, user scope -> every project)
        └─ claude-session-notifier.sh
-            ├─ reads { "cwd": ... } from stdin -> basename -> "oz-A"
-            ├─ afplay Glass.aiff              (needs no permission)
-            └─ claude-banner "oz-A finished" 5 0
-                 └─ borderless NSWindow, .statusBar level, click-through
+            ├─ reads { cwd, transcript_path, hook_event_name } from stdin
+            │    ├─ last "ai-title" in the transcript -> "Fix the retry backoff"
+            │    └─ or basename of cwd                -> "oz-A"
+            ├─ Stop -> "<name> finished"   Notification -> "<name> needs you"
+            ├─ afplay Glass.aiff / Ping.aiff  (needs no permission)
+            └─ claude-banner "<message>" 5 0 --focus-iterm2 <uuid>
+                 └─ borderless NSPanel, .statusBar level, click -> focus that tab
 ```
+
+Both events are registered because they answer different questions, and a session that
+stops to ask something never fires `Stop` — its turn has not ended. `install.sh` and
+`uninstall.sh` must stay symmetric across both, or an uninstall leaves half of itself
+behind pointing at a deleted script.
 
 ## Invariants — do not break these
 
@@ -68,7 +78,7 @@ Claude finishes a turn
 ./install.sh --dry-run     # show what would change
 ./install.sh               # compile, install, register, fire a test banner
 ./doctor.sh                # isolate which stage failed
-./uninstall.sh             # remove only our own entry
+./uninstall.sh             # remove only our own entries (both events)
 
 ~/.claude/hooks/bin/claude-banner "text" 6 0     # draw directly (message, seconds, slot)
 ```
@@ -86,6 +96,12 @@ Exit code 0 proves nothing here — every historical failure exited 0. Two rules
 Regression set worth re-running after any change to the dispatcher: plain name, name
 with spaces, Hebrew/Japanese/emoji, 90-char name, missing `cwd`, malformed JSON, empty
 stdin, `/`, an injection payload, custom `CLAUDE_BANNER_*` vars, and two banners at once.
+Since the dispatcher became event-aware and title-aware, add: `hook_event_name` of `Stop`
+vs `Notification` vs an unknown value vs absent (all but Notification must read as
+"finished", never fall silent), `NAME_SOURCE=title` with a readable transcript, with a
+missing one (must fall back to the folder, not the generic label), and `NAME_SOURCE=folder`
+never opening the transcript at all. Round-trip `install.sh`/`uninstall.sh` against a
+settings.json holding foreign hooks on both events.
 
 ## Known limitations (documented in the README — keep them honest)
 

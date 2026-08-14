@@ -26,19 +26,45 @@ command -v afplay >/dev/null 2>&1 && pass "afplay present" || warn "afplay missi
 [[ -x "$BIN" ]]    && pass "binary installed"  || bad "binary missing → ./install.sh"
 [[ -x "$SCRIPT" ]] && pass "hook script installed" || bad "hook script missing → ./install.sh"
 
-# 3. Hook registration
+# 3. Hook registration — both events, reported separately. Stop alone is a working
+#    install that stays silent whenever a session is blocked asking you something.
 if [[ -f "$SETTINGS" ]] && command -v jq >/dev/null 2>&1; then
-  if jq -e '.hooks.Stop[]?.hooks[]?.command | select(test("claude-session-notifier"))' \
-       "$SETTINGS" >/dev/null 2>&1; then
-    pass "Stop hook registered in settings.json"
-  else
-    bad "Stop hook NOT registered → ./install.sh"
-  fi
-  count=$(jq '[.hooks.Stop[]?.hooks[]?.command | select(test("claude-session-notifier"))] | length' \
-            "$SETTINGS" 2>/dev/null || echo 0)
-  [[ "${count:-0}" -gt 1 ]] && warn "registered $count times — you will get duplicate banners"
+  for event in Stop Notification; do
+    count=$(jq --arg e "$event" \
+      '[.hooks[$e][]?.hooks[]?.command | select(test("claude-session-notifier"))] | length' \
+      "$SETTINGS" 2>/dev/null || echo 0)
+    if [[ "${count:-0}" -ge 1 ]]; then
+      pass "$event hook registered in settings.json"
+    elif [[ "$event" == "Notification" ]]; then
+      warn "$event hook NOT registered — no banner when a session is waiting on you → ./install.sh"
+    else
+      bad "$event hook NOT registered → ./install.sh"
+    fi
+    [[ "${count:-0}" -gt 1 ]] && warn "$event registered $count times — you will get duplicate banners"
+  done
 else
   bad "cannot read $SETTINGS"
+fi
+
+# 4. Which name will the banner use, and can it actually get it?
+NAME_SOURCE="${CLAUDE_BANNER_NAME_SOURCE:-title}"
+pass "name source: $NAME_SOURCE"
+if [[ "$NAME_SOURCE" == "title" ]]; then
+  latest=$(ls -t "$CLAUDE_DIR"/projects/*/*.jsonl 2>/dev/null | head -1)
+  if [[ -n "$latest" ]] && grep -q '"type":"ai-title"' "$latest" 2>/dev/null; then
+    pass "session titles readable (e.g. \"$(grep '"type":"ai-title"' "$latest" | tail -1 | jq -r '.aiTitle' 2>/dev/null)\")"
+  else
+    warn "no session title found yet — banners will fall back to the folder name"
+  fi
+fi
+
+# 5. Click-to-focus needs a resolvable tab id; without one the banner is inert but fine.
+if [[ "${TERM_PROGRAM:-}" == "iTerm.app" && -n "${ITERM_SESSION_ID:-}" ]]; then
+  pass "click-to-focus available (iTerm2 session ${ITERM_SESSION_ID#*:})"
+  printf '    note: the first click asks for Automation permission; denying it\n'
+  printf '    downgrades the click to activating iTerm2 without selecting the tab.\n'
+else
+  warn "click-to-focus unavailable here (needs iTerm2; TERM_PROGRAM=${TERM_PROGRAM:-unset})"
 fi
 
 # 4. Does the binary actually draw?
