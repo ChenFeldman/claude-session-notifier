@@ -100,6 +100,23 @@ func focusITermSession(_ uuid: String) {
     }
 }
 
+// Borrow the installed Claude app's own icon rather than committing a copy of it. Keeps a
+// binary asset out of a compile-from-source repo, avoids shipping someone else's mark, and
+// stays right if that icon ever changes. Falls back to a system symbol so the banner is
+// always identifiable, even where the desktop app was never installed.
+func claudeIcon() -> NSImage? {
+    let workspace = NSWorkspace.shared
+    let bundleIDs = ["com.anthropic.claudefordesktop", "com.anthropic.claude"]
+    for bundleID in bundleIDs {
+        if let url = workspace.urlForApplication(withBundleIdentifier: bundleID) {
+            return workspace.icon(forFile: url.path)
+        }
+    }
+    let config = NSImage.SymbolConfiguration(pointSize: 22, weight: .medium)
+    return NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Claude")?
+        .withSymbolConfiguration(config)
+}
+
 // Borderless windows do not receive clicks until something in the responder chain opts
 // in, and a HUD must not become key just because it was clicked — hence both overrides.
 final class ClickCatcher: NSView {
@@ -144,16 +161,32 @@ final class Banner {
         blur.layer?.cornerRadius = 16
         blur.layer?.masksToBounds = true
 
+        // Icon on the left, text indented past it. Without this the banner announces
+        // itself only in words, which is easy to miss in peripheral vision.
+        let iconSize: CGFloat = 28
+        let textX = 18 + iconSize + 12
+        let textW = w - textX - 18
+
+        if let icon = claudeIcon() {
+            let iconView = NSImageView(frame: NSRect(x: 18, y: (h - iconSize) / 2,
+                                                    width: iconSize, height: iconSize))
+            iconView.image = icon
+            iconView.imageScaling = .scaleProportionallyUpOrDown
+            // Only tints the symbol fallback; a real app icon keeps its own colours.
+            iconView.contentTintColor = .secondaryLabelColor
+            blur.addSubview(iconView)
+        }
+
         let title = NSTextField(labelWithString:
             focusUUID == nil ? "Claude Code" : "Claude Code  ·  click to focus")
         title.font = .systemFont(ofSize: 12, weight: .semibold)
         title.textColor = .secondaryLabelColor
-        title.frame = NSRect(x: 18, y: h - 30, width: w - 36, height: 16)
+        title.frame = NSRect(x: textX, y: h - 30, width: textW, height: 16)
 
         let body = NSTextField(wrappingLabelWithString: text)
         body.font = .systemFont(ofSize: 13)
         body.textColor = .labelColor
-        body.frame = NSRect(x: 18, y: 14, width: w - 36, height: h - 52)
+        body.frame = NSRect(x: textX, y: 14, width: textW, height: h - 52)
 
         blur.addSubview(title)
         blur.addSubview(body)
