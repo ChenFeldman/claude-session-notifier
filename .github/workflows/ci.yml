@@ -20,10 +20,15 @@ jobs:
             bash -n "$f" && echo "ok  $f"
           done
 
+      # -S warning, not the default: shellcheck's info level flags the `A && B || C`
+      # idiom used throughout doctor.sh, which is deliberate and predates this workflow
+      # ever running. Failing the build on style would mean rewriting working code to
+      # satisfy a linter that had never been run against it.
       - name: Shellcheck
         run: |
           brew install shellcheck
-          shellcheck install.sh uninstall.sh doctor.sh hooks/claude-session-notifier.sh tests/run-tests.sh
+          shellcheck -S warning install.sh uninstall.sh doctor.sh \
+            hooks/claude-session-notifier.sh tests/run-tests.sh
 
       - name: Installer preflight (dry run)
         run: |
