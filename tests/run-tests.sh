@@ -262,6 +262,9 @@ check_not "a malformed session id is rejected" "--focus-iterm2" \
   "$(run_hook "$(payload /Users/x/oz-A)" CLAUDE_BANNER_NAME_SOURCE=folder \
      TERM_PROGRAM=iTerm.app ITERM_SESSION_ID='w0t0p0:not-a-uuid')"
 
+# shellcheck disable=SC2016  # the single quotes are the point: this must reach the hook
+# as literal text, exactly as a hostile environment would supply it. Expanding it here
+# would run the payload in the test's own shell and prove nothing about the hook.
 check_not "an injected session id is rejected" "--focus-iterm2" \
   "$(run_hook "$(payload /Users/x/oz-A)" CLAUDE_BANNER_NAME_SOURCE=folder \
      TERM_PROGRAM=iTerm.app ITERM_SESSION_ID='w0t0p0:$(touch /tmp/csn-pwned2)')"

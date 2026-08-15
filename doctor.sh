@@ -50,7 +50,13 @@ fi
 NAME_SOURCE="${CLAUDE_BANNER_NAME_SOURCE:-title}"
 pass "name source: $NAME_SOURCE"
 if [[ "$NAME_SOURCE" == "title" ]]; then
-  latest=$(ls -t "$CLAUDE_DIR"/projects/*/*.jsonl 2>/dev/null | head -1)
+  # Newest transcript, without parsing `ls` — these paths are machine-generated but the
+  # project directory encodes a user's own path, which can contain anything.
+  latest=""
+  for f in "$CLAUDE_DIR"/projects/*/*.jsonl; do
+    [[ -f "$f" ]] || continue
+    [[ -z "$latest" || "$f" -nt "$latest" ]] && latest="$f"
+  done
   if [[ -n "$latest" ]] && grep -q '"type":"ai-title"' "$latest" 2>/dev/null; then
     pass "session titles readable (e.g. \"$(grep '"type":"ai-title"' "$latest" | tail -1 | jq -r '.aiTitle' 2>/dev/null)\")"
   else
