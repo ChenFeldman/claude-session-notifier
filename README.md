@@ -267,7 +267,10 @@ Honest list. These are real and unfixed in v0.1.
   Denying it downgrades the click to activating the app, which needs no permission.
 - **Titles lag at the start of a session.** Claude has not named the session yet in the
   first moments, so early banners fall back to the folder name.
-- **No tests.** CI only checks that the Swift compiles.
+- **The visual layer has no automated tests.** `./tests/run-tests.sh` covers the
+  dispatcher — naming, events, fallbacks, injection, the install/uninstall round trip —
+  but no check can assert that a window actually appeared, that a click landed on the
+  right tab, or that the sound played. Those still need a person and `./install.sh`.
 - **`jq` dependency in the hook path.** Could be folded into the Swift binary to make
   the tool dependency-free. Not done yet.
 - **The `osascript` fallback is unreliable by design.** If the binary is missing, the

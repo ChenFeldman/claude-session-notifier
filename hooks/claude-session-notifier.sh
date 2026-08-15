@@ -57,11 +57,10 @@ if [[ "$NAME_SOURCE" == "title" ]]; then
     # Titles are revised as a session goes on, so the last entry is the current one.
     title=$(grep '"type":"ai-title"' "$transcript" 2>/dev/null | tail -1 \
               | jq -r '.aiTitle // ""' 2>/dev/null || echo "")
-    # Sanitised before it is allowed to win: a title is model-generated text, so it is
-    # less predictable than a folder name. If nothing survives, the folder name stands
-    # rather than degrading to the generic fallback.
+    # Stripped before it is allowed to win, not merely before display: a title made
+    # entirely of control characters must lose to the folder name rather than blank the
+    # banner. Length is left to the shared cap below, which applies whatever the source.
     title=$(printf '%s' "$title" | LC_ALL=C tr -d '\000-\037')
-    title="${title:0:64}"
     [[ -n "$title" ]] && name="$title"
   fi
 fi
