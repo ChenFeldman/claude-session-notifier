@@ -130,8 +130,16 @@ final class ClickCatcher: NSView {
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)   // no Dock icon, no menu bar takeover
 
+// How long to wait on osascript before giving up and exiting anyway. Long enough for
+// someone to read and answer the first-click Automation dialog, short enough that a
+// dialog left untouched cannot keep this process resident.
+let focusTimeoutSeconds: Double = 30
+
 final class Banner {
     var window: NSPanel!
+    // Set once a click is being serviced, so the fade timer does not terminate the process
+    // while osascript is still working.
+    private var isFocusing = false
 
     func show(_ text: String, duration: Double, slot: Int, focusUUID: String?) {
         guard let screen = NSScreen.main else { NSApp.terminate(nil); return }
@@ -150,7 +158,11 @@ final class Banner {
         // chromeHeight is the fixed furniture: padding, the title row, and the gap under
         // it. minHeight keeps short messages looking exactly as they did before.
         let chromeHeight: CGFloat = 52
-        let minHeight: CGFloat = 92, maxHeight: CGFloat = 200
+        // maxHeight sets the stacking pitch, so an over-generous value costs usable slots
+        // before a banner runs off-screen. The name is capped at 64 characters, so even a
+        // long custom template lands in three lines; 140 covers that with room and keeps
+        // the pitch far closer to the original 102 than 200 did.
+        let minHeight: CGFloat = 92, maxHeight: CGFloat = 140
         let bodyH = ceil(measured)
         let h = min(maxHeight, max(minHeight, chromeHeight + bodyH))
 
@@ -210,9 +222,28 @@ final class Banner {
 
         if let uuid = focusUUID {
             let catcher = ClickCatcher(frame: NSRect(x: 0, y: 0, width: w, height: h))
-            catcher.onClick = {
-                focusITermSession(uuid)
-                NSApp.terminate(nil)
+            catcher.onClick = { [weak self] in
+                guard let self = self, !self.isFocusing else { return }
+                self.isFocusing = true
+
+                // Acknowledge the click by leaving immediately. osascript can take a long
+                // time — it walks every window, tab and session, and on the very first
+                // click it sits behind the Automation consent dialog until the user
+                // answers. Doing that on the main thread froze the banner mid-fade and
+                // left it on screen indefinitely if consent was ignored, breaking the one
+                // guarantee this window has: that it always goes away.
+                self.window.orderOut(nil)
+
+                DispatchQueue.global(qos: .userInitiated).async {
+                    focusITermSession(uuid)
+                    DispatchQueue.main.async { NSApp.terminate(nil) }
+                }
+
+                // Backstop, so a consent dialog nobody answers cannot leave this process
+                // resident forever. Generous enough to survive a human reading it.
+                DispatchQueue.main.asyncAfter(deadline: .now() + focusTimeoutSeconds) {
+                    NSApp.terminate(nil)
+                }
             }
             blur.addSubview(catcher)   // added last so it sits above the labels
         }
@@ -227,6 +258,9 @@ final class Banner {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            // A click already in flight owns teardown; fading out from under it would kill
+            // osascript before it had selected anything.
+            if self.isFocusing { return }
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.45
                 self.window.animator().alphaValue = 0

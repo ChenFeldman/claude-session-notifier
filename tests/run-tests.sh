@@ -96,6 +96,11 @@ check_not() { # check_not <name> <forbidden-substring> <actual>
   fi
 }
 
+# "" as an expected substring matches everything, so silence needs its own assertion.
+silent_or_output() { # silent_or_output <run_hook output>
+  [[ -z "$1" ]] && printf 'SILENT' || printf '%s' "$1"
+}
+
 payload() { # payload <cwd> [extra-json-object]
   local extra="${2:-}"
   [[ -z "$extra" ]] && extra='{}'
@@ -165,23 +170,59 @@ rm -f /tmp/csn-pwned
 # ── Titles ───────────────────────────────────────────────────────────────────
 printf '%s\n' "$(dim 'session titles')"
 
-check "title is the default source" "<Fix the retry backoff finished>" \
+check "folder is the default source, not the title" "<somerepo finished>" \
   "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$TRANSCRIPT" '{transcript_path:$t}')")")"
+
+check "title is used when opted in" "<Fix the retry backoff finished>" \
+  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$TRANSCRIPT" '{transcript_path:$t}')")" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
 
 check "the LAST ai-title wins, not the first" "<Fix the retry backoff finished>" \
-  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$TRANSCRIPT" '{transcript_path:$t}')")")"
+  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$TRANSCRIPT" '{transcript_path:$t}')")" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
 
 check_not "the earlier title is not used" "An earlier title" \
-  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$TRANSCRIPT" '{transcript_path:$t}')")")"
+  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$TRANSCRIPT" '{transcript_path:$t}')")" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
 
 check "unreadable transcript falls back to the folder, not the generic label" "<somerepo finished>" \
-  "$(run_hook "$(payload /Users/x/somerepo '{"transcript_path":"/nonexistent.jsonl"}')")"
+  "$(run_hook "$(payload /Users/x/somerepo '{"transcript_path":"/nonexistent.jsonl"}')" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
 
 check "absent transcript_path falls back to the folder" "<somerepo finished>" \
-  "$(run_hook "$(payload /Users/x/somerepo)")"
+  "$(run_hook "$(payload /Users/x/somerepo)" CLAUDE_BANNER_NAME_SOURCE=title)"
 
 check "transcript with no ai-title falls back to the folder" "<somerepo finished>" \
-  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$FAKE_HOME/.claude/settings.json" '{transcript_path:$t}')")")"
+  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$FAKE_HOME/.claude/settings.json" '{transcript_path:$t}')")" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
+
+# Key order and spacing must not matter: the reader parses each line rather than matching
+# a literal, so a writer that emits the same data differently still works.
+reordered="$FAKE_HOME/reordered.jsonl"
+printf '{ "aiTitle" : "Reordered keys" ,  "type" : "ai-title" }\n' > "$reordered"
+check "title is found regardless of key order or spacing" "<Reordered keys finished>" \
+  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$reordered" '{transcript_path:$t}')")" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
+
+# The reader takes a byte window from the end, which starts mid-line. That partial line
+# must be discarded rather than breaking the parse for everything after it.
+big="$FAKE_HOME/big.jsonl"
+: > "$big"
+i=0; while [ $i -lt 400 ]; do jq -nc --arg p "$(printf 'x%.0s' {1..200})" '{type:"assistant",message:$p}' >> "$big"; i=$((i+1)); done
+jq -nc '{type:"ai-title", aiTitle:"Title near the end"}' >> "$big"
+i=0; while [ $i -lt 50 ]; do jq -nc '{type:"assistant",message:"tail"}' >> "$big"; i=$((i+1)); done
+check "title found in a file larger than the read window" "<Title near the end finished>" \
+  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$big" '{transcript_path:$t}')")" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
+
+# A title set early in a long session falls outside the window, so the full-file fallback
+# has to still find it.
+early="$FAKE_HOME/early.jsonl"
+jq -nc '{type:"ai-title", aiTitle:"Titled at the very start"}' > "$early"
+i=0; while [ $i -lt 500 ]; do jq -nc --arg p "$(printf 'y%.0s' {1..200})" '{type:"assistant",message:$p}' >> "$early"; i=$((i+1)); done
+check "title outside the window is still found" "<Titled at the very start finished>" \
+  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$early" '{transcript_path:$t}')")" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
 
 check "explicit folder source ignores an available title" "<somerepo finished>" \
   "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$TRANSCRIPT" '{transcript_path:$t}')")" \
@@ -197,12 +238,14 @@ check "folder mode has no path to the transcript" "0" "$title_branch_only"
 long_title="$FAKE_HOME/long-title.jsonl"
 jq -nc --arg t "$(printf 'T%.0s' {1..120})" '{type:"ai-title", aiTitle:$t}' > "$long_title"
 check "long title is capped at 64" "<$(printf 'T%.0s' {1..64}) finished>" \
-  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$long_title" '{transcript_path:$t}')")")"
+  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$long_title" '{transcript_path:$t}')")" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
 
 ctrl_title="$FAKE_HOME/ctrl-title.jsonl"
 jq -nc '{type:"ai-title", aiTitle:"we\u0001ird"}' > "$ctrl_title"
 check "control characters in a title are stripped" "<weird finished>" \
-  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$ctrl_title" '{transcript_path:$t}')")")"
+  "$(run_hook "$(payload /Users/x/somerepo "$(jq -nc --arg t "$ctrl_title" '{transcript_path:$t}')")" \
+     CLAUDE_BANNER_NAME_SOURCE=title)"
 
 # ── Events ───────────────────────────────────────────────────────────────────
 printf '%s\n' "$(dim 'events')"
@@ -217,6 +260,26 @@ check "Notification says needs you" "<oz-A needs you>" \
 
 # Anything unfamiliar must behave like a turn ending rather than go quiet: silence is the
 # one failure mode nobody notices.
+# idle_prompt fires about a minute after the prompt goes quiet, which happens after every
+# turn someone walks away from. Ringing for it would follow every "finished" with a
+# spurious "needs you" and make the waiting signal meaningless.
+check "idle_prompt notification is silent" "SILENT" \
+  "$(silent_or_output "$(run_hook "$(payload /Users/x/oz-A '{"hook_event_name":"Notification","notification_type":"idle_prompt"}')" CLAUDE_BANNER_NAME_SOURCE=folder)")"
+
+check "idle notification is silent" "SILENT" \
+  "$(silent_or_output "$(run_hook "$(payload /Users/x/oz-A '{"hook_event_name":"Notification","notification_type":"idle"}')" CLAUDE_BANNER_NAME_SOURCE=folder)")"
+
+check "permission_prompt still rings" "<oz-A needs you>" \
+  "$(run_hook "$(payload /Users/x/oz-A '{"hook_event_name":"Notification","notification_type":"permission_prompt"}')" CLAUDE_BANNER_NAME_SOURCE=folder)"
+
+check "elicitation still rings" "<oz-A needs you>" \
+  "$(run_hook "$(payload /Users/x/oz-A '{"hook_event_name":"Notification","notification_type":"elicitation"}')" CLAUDE_BANNER_NAME_SOURCE=folder)"
+
+# An unrecognised type rings rather than going quiet: a new kind of attention request
+# nobody hears is worse than one extra banner.
+check "an unknown notification_type still rings" "<oz-A needs you>" \
+  "$(run_hook "$(payload /Users/x/oz-A '{"hook_event_name":"Notification","notification_type":"something_new"}')" CLAUDE_BANNER_NAME_SOURCE=folder)"
+
 check "unknown event degrades to finished" "<oz-A finished>" \
   "$(run_hook "$(payload /Users/x/oz-A '{"hook_event_name":"SomethingNew"}')" CLAUDE_BANNER_NAME_SOURCE=folder)"
 
