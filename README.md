@@ -183,7 +183,10 @@ Honest list. These are real and unfixed in v0.1.
 - **Tested on exactly one machine.** macOS 26.5.2, Apple Silicon, iTerm2, zsh. Older
   macOS and Intel Macs are unverified — reports welcome.
 - **Long messages clip.** The window is a fixed 380×92 with no auto-sizing.
-- **No tests.** CI only checks that the Swift compiles.
+- **The visual layer has no automated tests.** `./tests/run-tests.sh` covers the
+  dispatcher — naming, fallbacks, injection, the install/uninstall round trip — but no
+  check can assert that a window actually appeared or that the sound played. Those still
+  need a person and `./install.sh`.
 - **`jq` dependency in the hook path.** Could be folded into the Swift binary to make
   the tool dependency-free. Not done yet.
 - **The `osascript` fallback is unreliable by design.** If the binary is missing, the

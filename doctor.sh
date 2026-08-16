@@ -19,11 +19,17 @@ bad()  { printf '  \033[31m✗\033[0m %s\n' "$*"; }
 printf '\nclaude-session-notifier — doctor\n\n'
 
 # 1. Dependencies
+# SC2015 below is deliberate throughout this file: pass/warn/bad only print, so they
+# cannot fail and turn `A && B || C` into the if-then-else trap the check warns about.
+# shellcheck disable=SC2015
 command -v jq     >/dev/null 2>&1 && pass "jq present" || bad "jq missing → brew install jq"
+# shellcheck disable=SC2015
 command -v afplay >/dev/null 2>&1 && pass "afplay present" || warn "afplay missing (sound disabled)"
 
 # 2. Installed files
+# shellcheck disable=SC2015
 [[ -x "$BIN" ]]    && pass "binary installed"  || bad "binary missing → ./install.sh"
+# shellcheck disable=SC2015
 [[ -x "$SCRIPT" ]] && pass "hook script installed" || bad "hook script missing → ./install.sh"
 
 # 3. Hook registration

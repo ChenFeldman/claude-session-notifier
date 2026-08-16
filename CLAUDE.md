@@ -9,10 +9,11 @@ Small on purpose: ~600 lines, MIT, no runtime services. Keep it that way.
 
 ```
 install.sh / uninstall.sh / doctor.sh      macOS entry points
+tests/run-tests.sh                         the regression set (CI runs it)
 src/banner.swift                           the HUD window (compiled at install time)
 hooks/claude-session-notifier.sh           the dispatcher: stdin JSON -> name -> banner
 docs/why-osascript-fails.md                why Notification Center is avoided
-.github/workflows.disabled/ci.yml          CI, parked until the token has `workflow` scope
+.github/workflows/ci.yml                   CI: compile, shellcheck, tests
 ```
 
 `main` is macOS-only. Windows lives on the **`windows-support`** branch
@@ -73,6 +74,14 @@ Exit code 0 proves nothing here — every historical failure exited 0. Two rules
 2. **Confirm visually.** No automated check can tell whether a window appeared. Draw a
    real banner and ask the user.
 
+`tests/run-tests.sh` implements rule 1 for the regression set below; CI runs it. It clears
+every `CLAUDE_BANNER_*` variable before each case, because an inherited value from the
+developer's own shell silently changes what the hook emits and makes a case pass for the
+wrong reason.
+
+When adding a test, check it can actually fail: break the line it covers and confirm it
+goes red. A test that cannot fail is worse than no test, because it reads as coverage.
+
 Regression set worth re-running after any change to the dispatcher: plain name, name
 with spaces, Hebrew/Japanese/emoji, 90-char name, missing `cwd`, malformed JSON, empty
 stdin, `/`, an injection payload, custom `CLAUDE_BANNER_*` vars, and two banners at once.
@@ -80,8 +89,8 @@ stdin, `/`, an injection payload, custom `CLAUDE_BANNER_*` vars, and two banners
 ## Known limitations (documented in the README — keep them honest)
 
 `Stop` fires every turn end, not just on completion · banner slots are never reclaimed ·
-main display only · fixed 380×92 window clips long text · no unit tests · macOS needs
-`jq` · the `osascript` fallback is unreliable by design.
+main display only · fixed 380×92 window clips long text · the visual layer is untested
+and untestable · macOS needs `jq` · the `osascript` fallback is unreliable by design.
 
 ## Style
 

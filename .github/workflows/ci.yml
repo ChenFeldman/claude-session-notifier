@@ -16,16 +16,23 @@ jobs:
 
       - name: Shell syntax check
         run: |
-          for f in install.sh uninstall.sh doctor.sh hooks/claude-session-notifier.sh; do
+          for f in install.sh uninstall.sh doctor.sh hooks/claude-session-notifier.sh tests/run-tests.sh; do
             bash -n "$f" && echo "ok  $f"
           done
 
       - name: Shellcheck
         run: |
           brew install shellcheck
-          shellcheck install.sh uninstall.sh doctor.sh hooks/claude-session-notifier.sh
+          shellcheck install.sh uninstall.sh doctor.sh hooks/claude-session-notifier.sh \
+            tests/run-tests.sh
 
       - name: Installer preflight (dry run)
         run: |
           mkdir -p "$HOME/.claude"
           ./install.sh --dry-run
+
+      # The dispatcher's regression set. Runs the real script against a throwaway HOME
+      # rather than a reimplementation, and asserts on what it emitted — exit 0 has never
+      # been evidence of anything in this project.
+      - name: Tests
+        run: ./tests/run-tests.sh
