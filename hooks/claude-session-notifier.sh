@@ -17,14 +17,19 @@
 #   CLAUDE_BANNER_DURATION       seconds the banner stays on screen (default 5)
 #   CLAUDE_BANNER_TEXT           finished template; %s is the session name
 #   CLAUDE_BANNER_TEXT_WAITING   waiting template; %s is the session name
-#   CLAUDE_BANNER_NAME_SOURCE    "title" (default) or "folder"
+#   CLAUDE_BANNER_NAME_SOURCE    "folder" (default) or "title"
 
 set -uo pipefail
 
 DURATION="${CLAUDE_BANNER_DURATION:-5}"
-NAME_SOURCE="${CLAUDE_BANNER_NAME_SOURCE:-title}"
+NAME_SOURCE="${CLAUDE_BANNER_NAME_SOURCE:-folder}"
 
 BIN="$HOME/.claude/hooks/bin/claude-banner"
+
+# How much of the tail of a transcript to search for the session title. Large enough that
+# the current title is virtually always inside it, small enough that the cost does not
+# scale with a session that has been running all day.
+TRANSCRIPT_WINDOW_BYTES=65536
 
 # Read the payload once: `cwd` is always needed, and the title path below needs
 # `transcript_path` out of the same stdin.
@@ -38,6 +43,18 @@ name=$(basename "$cwd")
 # an unfamiliar event degrades to the original behaviour rather than going silent.
 event=$(printf '%s' "$payload" | jq -r '.hook_event_name // ""' 2>/dev/null || echo "")
 if [[ "$event" == "Notification" ]]; then
+  # Notification covers more than "I need you". It also fires roughly a minute after the
+  # prompt goes quiet, which happens after every turn someone walks away from — that one
+  # means "you stopped typing", not "I am blocked". Ringing for it would follow every
+  # "finished" with a spurious "needs you" and turn the waiting signal into noise.
+  #
+  # Skipped by name rather than by allowlist: an unrecognised type still rings, because a
+  # new kind of attention request going silently unnoticed is the worse failure. Observed
+  # values are permission_prompt, elicitation, and idle_prompt.
+  notification_type=$(printf '%s' "$payload" | jq -r '.notification_type // ""' 2>/dev/null || echo "")
+  case "$notification_type" in
+    idle|idle_prompt) exit 0 ;;
+  esac
   TEMPLATE="${CLAUDE_BANNER_TEXT_WAITING:-%s needs you}"
   # A different default sound on purpose: "finished" and "blocked on you" want opposite
   # reactions, and the whole point is knowing which without turning to look.
@@ -47,16 +64,33 @@ else
   SOUND="${CLAUDE_BANNER_SOUND:-/System/Library/Sounds/Glass.aiff}"
 fi
 
-# Name the session by Claude's own title. Several sessions in one repo share a folder
-# name, which is exactly when knowing which one finished matters most — so the title is
-# the more useful default, and `folder` remains available for anyone who would rather
-# this hook read nothing but the path it is already handed.
+# Opt in with CLAUDE_BANNER_NAME_SOURCE=title to name the session by Claude's own title.
+# Several sessions in one repo share a folder name, which is exactly when knowing which
+# one finished matters most.
+#
+# Off by default: the folder name comes from a path this hook is already handed, whereas a
+# title is model-generated text describing the work, read from a file on disk. Putting that
+# on screen, and widening what the hook reads, should be a decision rather than something
+# inherited on upgrade.
 if [[ "$NAME_SOURCE" == "title" ]]; then
   transcript=$(printf '%s' "$payload" | jq -r '.transcript_path // ""' 2>/dev/null || echo "")
   if [[ -n "$transcript" && -f "$transcript" ]]; then
-    # Titles are revised as a session goes on, so the last entry is the current one.
-    title=$(grep '"type":"ai-title"' "$transcript" 2>/dev/null | tail -1 \
-              | jq -r '.aiTitle // ""' 2>/dev/null || echo "")
+    # Read a window from the end rather than scanning the file. Titles are appended as a
+    # session goes on, so the current one is within the last few kilobytes of what can grow
+    # to several megabytes — and this runs on every event, in every open session.
+    #
+    # `fromjson?` rather than matching a literal `"type":"ai-title"`: that assumed key
+    # order and exact spacing, and would have failed silently into the folder name if the
+    # writer ever changed. It also discards the partial line the byte-window starts on.
+    title=$(tail -c "$TRANSCRIPT_WINDOW_BYTES" "$transcript" 2>/dev/null \
+              | jq -R -r 'fromjson? | select(.type? == "ai-title") | .aiTitle // empty' 2>/dev/null \
+              | tail -1)
+    # Only if the window held no title — a long session whose title was set early — pay for
+    # the whole file.
+    if [[ -z "$title" ]]; then
+      title=$(jq -R -r 'fromjson? | select(.type? == "ai-title") | .aiTitle // empty' \
+                "$transcript" 2>/dev/null | tail -1)
+    fi
     # Stripped before it is allowed to win, not merely before display: a title made
     # entirely of control characters must lose to the folder name rather than blank the
     # banner. Length is left to the shared cap below, which applies whatever the source.

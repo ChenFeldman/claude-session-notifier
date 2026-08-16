@@ -98,7 +98,7 @@ Environment variables, e.g. in `~/.zshrc`:
 | `CLAUDE_BANNER_DURATION` | `5` | seconds on screen |
 | `CLAUDE_BANNER_TEXT` | `%s finished` | `%s` becomes the session name |
 | `CLAUDE_BANNER_TEXT_WAITING` | `%s needs you` | shown when a session is blocked on you |
-| `CLAUDE_BANNER_NAME_SOURCE` | `title` | `title` for Claude's own session title, `folder` for the directory name |
+| `CLAUDE_BANNER_NAME_SOURCE` | `folder` | `folder` for the directory name, `title` for Claude's own session title |
 
 ```bash
 export CLAUDE_BANNER_TEXT="🎉 %s is done!"
@@ -108,14 +108,18 @@ export CLAUDE_BANNER_NAME_SOURCE=folder
 
 ### Which name you get
 
-`title` uses the session title Claude generates — "Fix the retry backoff" — which is
-what distinguishes three sessions running in the *same* repo, the case this tool exists
-for. It comes from the transcript Claude Code already writes; nothing is generated or
-requested for it.
+`folder`, the default, uses the directory name. The hook reads nothing but the path it is
+already handed, and the label is short and stable for the whole session.
 
-`folder` uses the directory name instead. Choose it if you want the hook to read nothing
-but the path it is handed, or if you prefer a short, stable label that never changes
-mid-session.
+`title` uses the session title Claude generates — "Fix the retry backoff" — which is what
+distinguishes three sessions running in the *same* repo, the case this tool exists for. It
+comes from the transcript Claude Code already writes; nothing is generated or requested for
+it. It is opt-in because it puts a description of your work on screen, and because it means
+this hook reads a file rather than just a path:
+
+```bash
+export CLAUDE_BANNER_NAME_SOURCE=title
+```
 
 Titles run longer than folder names, so the banner sizes its height to the text rather
 than truncating it. If the title cannot be read — early in a session, before Claude has
@@ -128,12 +132,18 @@ Two events are registered, because they answer different questions:
 | Event | Fires when | Banner says |
 |---|---|---|
 | `Stop` | a turn ended | `<name> finished` |
-| `Notification` | Claude is blocked on you — permission prompt, question, or idle | `<name> needs you` |
+| `Notification` | Claude is blocked on you — permission prompt or question | `<name> needs you` |
 
 `Notification` matters more than it sounds. A session that stops to ask you something has
 **not** ended its turn, so `Stop` never fires and the old behaviour was silence at exactly
 the moment you were being waited on. The two cases get different default sounds so you can
 tell them apart without turning to look.
+
+That event also fires about a minute after the prompt goes quiet (`notification_type` of
+`idle_prompt`), which happens after every turn you walk away from. Those are ignored — they
+mean "you stopped typing", not "I am blocked", and ringing for them would follow every
+*finished* with a spurious *needs you*. An unrecognised type still rings, so a new kind of
+attention request is never silently dropped.
 
 ```
 Claude finishes a turn ── or ── blocks waiting on you
@@ -265,8 +275,9 @@ Honest list. These are real and unfixed in v0.1.
   written it yet. Ghostty, VS Code and IntelliJ cannot select a specific tab at all.
 - **The first click asks for Automation permission.** Unavoidable for tab selection.
   Denying it downgrades the click to activating the app, which needs no permission.
-- **Titles lag at the start of a session.** Claude has not named the session yet in the
-  first moments, so early banners fall back to the folder name.
+- **Titles lag at the start of a session.** With `CLAUDE_BANNER_NAME_SOURCE=title`, Claude
+  has not named the session yet in the first moments, so early banners fall back to the
+  folder name.
 - **The visual layer has no automated tests.** `./tests/run-tests.sh` covers the
   dispatcher — naming, events, fallbacks, injection, the install/uninstall round trip —
   but no check can assert that a window actually appeared, that a click landed on the

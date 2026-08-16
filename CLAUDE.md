@@ -15,7 +15,7 @@ src/banner.swift                           the HUD window (compiled at install t
 hooks/claude-session-notifier.sh           the dispatcher: stdin JSON -> name -> banner
                                            (registered on Stop AND Notification)
 docs/why-osascript-fails.md                why Notification Center is avoided
-.github/workflows.disabled/ci.yml          CI, parked until the token has `workflow` scope
+.github/workflows/ci.yml                   CI: compile, shellcheck, tests
 ```
 
 `main` is macOS-only. Windows lives on the **`windows-support`** branch
@@ -33,6 +33,7 @@ Claude finishes a turn ── or ── blocks waiting on the user
             │    ├─ last "ai-title" in the transcript -> "Fix the retry backoff"
             │    └─ or basename of cwd                -> "oz-A"
             ├─ Stop -> "<name> finished"   Notification -> "<name> needs you"
+            │    (idle_prompt notifications are ignored: "you stopped typing")
             ├─ afplay Glass.aiff / Ping.aiff  (needs no permission)
             └─ claude-banner "<message>" 5 0 --focus-iterm2 <uuid>
                  └─ borderless NSPanel, .statusBar level, click -> focus that tab
@@ -61,9 +62,9 @@ behind pointing at a deleted script.
 - **Merge `settings.json`, never overwrite.** Back it up, drop only entries matching the
   `claude-session-notifier` marker, stay idempotent on re-run.
 - **Compile on the user's machine.** A downloaded binary is Gatekeeper-quarantined.
-- **No network calls. Nothing is ever written or logged.** The hook reads `cwd` and, when
-  `CLAUDE_BANNER_NAME_SOURCE=title` (the default), the last `ai-title` entry out of
-  `transcript_path`. Nothing else in the payload is touched — not `session_id`, not
+- **No network calls. Nothing is ever written or logged.** The hook reads `cwd` and, only
+  when `CLAUDE_BANNER_NAME_SOURCE=title` is set (it is off by default), the last `ai-title`
+  entry out of `transcript_path`. Nothing else in the payload is touched — not `session_id`, not
   `last_assistant_message`. Widening that set is a decision, not a refactor.
 - **`folder` must stay a real escape hatch.** Someone who sets it is asking this hook to
   read nothing but the path it is handed. Keep that path free of transcript access.
@@ -72,6 +73,13 @@ behind pointing at a deleted script.
   reaches `osascript` through `argv`. Same discipline as the session name.
 - **No focus target means click-through.** The banner must not start intercepting clicks
   for people it cannot help.
+- **The banner always goes away.** Nothing on the click path may block the main thread:
+  `osascript` walks every window and, on a first click, waits on the Automation dialog.
+  Do that synchronously and the window freezes on screen forever. Hand off, and keep the
+  timeout backstop.
+- **`Notification` is not all attention.** `idle_prompt` fires after every turn the user
+  walks away from. Skip it by name, and let unknown types through — a missed attention
+  request is worse than an extra banner.
 
 ## Commands
 

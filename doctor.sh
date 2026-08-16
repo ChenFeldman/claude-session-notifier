@@ -19,11 +19,17 @@ bad()  { printf '  \033[31m✗\033[0m %s\n' "$*"; }
 printf '\nclaude-session-notifier — doctor\n\n'
 
 # 1. Dependencies
+# SC2015 is deliberate throughout this file: pass/warn/bad only print, so they cannot fail
+# and turn `A && B || C` into the if-then-else trap the check warns about.
+# shellcheck disable=SC2015
 command -v jq     >/dev/null 2>&1 && pass "jq present" || bad "jq missing → brew install jq"
+# shellcheck disable=SC2015
 command -v afplay >/dev/null 2>&1 && pass "afplay present" || warn "afplay missing (sound disabled)"
 
 # 2. Installed files
+# shellcheck disable=SC2015
 [[ -x "$BIN" ]]    && pass "binary installed"  || bad "binary missing → ./install.sh"
+# shellcheck disable=SC2015
 [[ -x "$SCRIPT" ]] && pass "hook script installed" || bad "hook script missing → ./install.sh"
 
 # 3. Hook registration — both events, reported separately. Stop alone is a working
@@ -58,7 +64,10 @@ if [[ "$NAME_SOURCE" == "title" ]]; then
     [[ -z "$latest" || "$f" -nt "$latest" ]] && latest="$f"
   done
   if [[ -n "$latest" ]] && grep -q '"type":"ai-title"' "$latest" 2>/dev/null; then
-    pass "session titles readable (e.g. \"$(grep '"type":"ai-title"' "$latest" | tail -1 | jq -r '.aiTitle' 2>/dev/null)\")"
+    # Count, never content: this output is exactly what gets pasted into a bug report,
+    # and the title describes whatever the person was working on.
+    found=$(grep -c '"type":"ai-title"' "$latest" 2>/dev/null || echo 0)
+    pass "session titles readable (found $found)"
   else
     warn "no session title found yet — banners will fall back to the folder name"
   fi
@@ -73,7 +82,7 @@ else
   warn "click-to-focus unavailable here (needs iTerm2; TERM_PROGRAM=${TERM_PROGRAM:-unset})"
 fi
 
-# 4. Does the binary actually draw?
+# 6. Does the binary actually draw?
 if [[ -x "$BIN" ]]; then
   printf '\n  Drawing a test banner (top-right, 4s)...\n'
   "$BIN" "doctor test — if you can read this, the banner works" 4
@@ -81,7 +90,7 @@ if [[ -x "$BIN" ]]; then
   printf '  (hook not firing). If NO, please open an issue with your macOS version.\n'
 fi
 
-# 5. Focus / Do Not Disturb — affects the sound, not the banner
+# 7. Focus / Do Not Disturb — affects the sound, not the banner
 if [[ -s "$HOME/Library/DoNotDisturb/DB/Assertions.json" ]]; then
   warn "a Focus mode may be active (this can silence the sound; the banner still draws)"
 fi
