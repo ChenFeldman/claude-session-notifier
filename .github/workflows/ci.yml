@@ -5,6 +5,17 @@ on:
     branches: [main]
   pull_request:
 
+# One list, used by both shell steps below. It was two, and .githooks/pre-commit was
+# added to neither — a new script joining half the checks is the failure this prevents.
+env:
+  SHELL_FILES: >-
+    install.sh
+    uninstall.sh
+    doctor.sh
+    hooks/claude-session-notifier.sh
+    tests/run-tests.sh
+    .githooks/pre-commit
+
 jobs:
   build:
     runs-on: macos-latest
@@ -16,15 +27,16 @@ jobs:
 
       - name: Shell syntax check
         run: |
-          for f in install.sh uninstall.sh doctor.sh hooks/claude-session-notifier.sh tests/run-tests.sh; do
+          for f in $SHELL_FILES; do
             bash -n "$f" && echo "ok  $f"
           done
 
       - name: Shellcheck
         run: |
           brew install shellcheck
-          shellcheck install.sh uninstall.sh doctor.sh \
-            hooks/claude-session-notifier.sh tests/run-tests.sh
+          # Unquoted on purpose: the list must word-split into separate arguments.
+          # shellcheck disable=SC2086
+          shellcheck $SHELL_FILES
 
       - name: Installer preflight (dry run)
         run: |
