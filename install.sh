@@ -55,7 +55,10 @@ if [[ $DRY_RUN -eq 1 ]]; then
   printf '\n  Dry run — would then:\n'
   info "compile  $REPO_DIR/src/banner.swift  ->  $BIN_DIR/claude-banner"
   info "install  $SCRIPT_DEST"
-  info "register a Stop hook in $SETTINGS (backing it up first)"
+  # Name both events. --dry-run is what a cautious person runs before letting this near
+  # their settings.json, so under-reporting what the real run touches is the one thing
+  # it must not do.
+  info "register Stop and Notification hooks in $SETTINGS (backing it up first)"
   printf '\n'
   exit 0
 fi

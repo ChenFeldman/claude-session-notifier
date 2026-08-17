@@ -365,6 +365,22 @@ check_not "an empty ITERM_SESSION_ID is rejected" "--focus-iterm2" \
   "$(run_hook "$(payload /Users/x/oz-A)" CLAUDE_BANNER_NAME_SOURCE=folder \
      TERM_PROGRAM=iTerm.app ITERM_SESSION_ID='')"
 
+# ── The dry run tells the truth ──────────────────────────────────────────────
+printf '%s\n' "$(dim 'dry run')"
+
+# Outside the slow block on purpose: --dry-run compiles nothing, so there is no reason
+# to make anyone opt in to checking it.
+#
+# This is the output someone reads before deciding whether to let the installer near
+# their settings.json, so it has to name everything the real run touches. It named only
+# Stop for a while after Notification was added, which understated the change to a file
+# people are right to be protective of.
+dry=$(HOME="$FAKE_HOME" "$REPO_DIR/install.sh" --dry-run 2>/dev/null)
+check "dry run names the Stop hook" "Stop" "$dry"
+check "dry run names the Notification hook" "Notification" "$dry"
+check "dry run promises the backup" "backing it up first" "$dry"
+check_not "dry run does not claim to have done anything" "registered" "$dry"
+
 # ── Install / uninstall round trip ───────────────────────────────────────────
 if [[ "${SKIP_SLOW:-0}" != "1" ]] && command -v swiftc >/dev/null 2>&1; then
   printf '%s\n' "$(dim 'install / uninstall round trip')"
