@@ -96,6 +96,19 @@ check_not() { # check_not <name> <forbidden-substring> <actual>
   fi
 }
 
+check_prefix() { # check_prefix <name> <expected-start-of-output> <actual>
+  local name="$1" expected="$2" actual="$3"
+  if [[ "$actual" == "$expected"* ]]; then
+    PASS=$((PASS + 1)); printf '  %s %s\n' "$(green ✓)" "$name"
+  else
+    FAIL=$((FAIL + 1)); FAILED_NAMES="$FAILED_NAMES
+    $name"
+    printf '  %s %s\n' "$(red ✗)" "$name"
+    printf '      expected to start with: %s\n' "$expected"
+    printf '      actual:                 %s\n' "${actual:-<empty>}"
+  fi
+}
+
 # "" as an expected substring matches everything, so silence needs its own assertion.
 silent_or_output() { # silent_or_output <run_hook output>
   [[ -z "$1" ]] && printf 'SILENT' || printf '%s' "$1"
@@ -302,6 +315,21 @@ check "custom duration is passed through" "<8>" \
 # The template is user-supplied and must not be treated as a printf format string.
 check "a % in the template is not interpreted" "<100% oz-A>" \
   "$(run_hook "$(payload /Users/x/oz-A)" CLAUDE_BANNER_NAME_SOURCE=folder CLAUDE_BANNER_TEXT='100% %s')"
+
+# ── The argv contract ────────────────────────────────────────────────────────
+printf '%s\n' "$(dim 'argv contract')"
+
+# Every other case here substring-matches the concatenated argv, which cannot see
+# *position*. Swapping the banner's first two arguments — so it draws "5" and waits
+# "oz-A finished" seconds — left the whole suite green until this case existed. The
+# binary reads argv positionally, so the order is part of the contract between the two
+# halves of this project and needs one assertion that pins it exactly.
+# Anchored at the start rather than matched whole: the third argument is the slot, and
+# that comes from counting live banner processes, so a real banner on screen while the
+# suite runs would make an exact match flaky. Positions 1 and 2 are the contract.
+check_prefix "banner argv is message first, then duration" \
+  "<oz-A finished><5>" \
+  "$(run_hook "$(payload /Users/x/oz-A)" CLAUDE_BANNER_NAME_SOURCE=folder)"
 
 # ── Click to focus ───────────────────────────────────────────────────────────
 printf '%s\n' "$(dim 'click to focus')"
