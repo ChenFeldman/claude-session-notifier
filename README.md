@@ -293,6 +293,17 @@ Honest list. These are real and unfixed in v0.1.
 Issues and PRs welcome — especially reports from other macOS versions and hardware,
 since single-machine testing is this release's weakest point.
 
+If you are changing the dispatcher, turn on the pre-commit hook once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+It runs `SKIP_SLOW=1 ./tests/run-tests.sh` when you stage anything under `hooks/`,
+`src/`, `tests/`, or the top-level scripts, and stays out of the way otherwise. It is a
+convenience, not a gate — CI runs the full set including the install round trip, and
+neither can tell you whether a banner actually appeared on screen.
+
 ## Credits
 
 Thank you Asaf Ambar for being part of the idea and thinking how to create it together.

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+#
+# The fast half of the regression set, before the commit rather than after the push.
+#
+# Enable once, per clone:
+#
+#   git config core.hooksPath .githooks
+#
+# It lives here rather than in .git/hooks because that directory is not tracked, so a
+# hook written there protects exactly one person and silently protects nobody else.
+#
+# What this is NOT: the gate. CI is the gate. This is bypassable with --no-verify, it
+# checks the working tree rather than the staged content, and — per CLAUDE.md's second
+# testing rule — no automated check here can tell whether a window actually appeared.
+# A green run means the dispatcher still behaves. It does not mean the tool works.
+
+set -uo pipefail
+
+# Only run when something that can change behaviour is staged. A hook that fires on a
+# README typo teaches people to reach for --no-verify, and a bypass habit costs more
+# than the checks were ever worth.
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+if ! printf '%s\n' "$staged" | grep -qE '^(hooks/|src/|tests/|install\.sh|uninstall\.sh|doctor\.sh)'; then
+  exit 0
+fi
+
+status=0
+
+# Syntax first: it is instant, and a parse error makes every test below fail for a
+# reason that has nothing to do with what it was testing.
+while IFS= read -r f; do
+  [[ -n "$f" && -f "$f" && "$f" == *.sh ]] || continue
+  bash -n "$f" || status=1
+done <<< "$staged"
+
+if [[ $status -ne 0 ]]; then
+  printf '\n  pre-commit: shell syntax error above. Commit aborted.\n\n'
+  exit 1
+fi
+
+# SKIP_SLOW leaves out the install/uninstall round trip, which compiles Swift and takes
+# far longer than anyone will tolerate on every commit. CI runs the full set.
+if command -v jq >/dev/null 2>&1; then
+  if ! SKIP_SLOW=1 ./tests/run-tests.sh; then
+    printf '\n  pre-commit: regression tests failed. Commit aborted.\n'
+    printf '  Bypass with --no-verify if you know why, but CI will run the full set.\n\n'
+    exit 1
+  fi
+else
+  # jq is a hard dependency of the hook itself, so its absence is worth saying out loud
+  # rather than passing quietly and implying the tests ran.
+  printf '\n  pre-commit: jq not found — tests SKIPPED, not passed. brew install jq\n\n'
+fi
+
+exit 0

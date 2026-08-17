@@ -11,6 +11,7 @@ Small on purpose: ~600 lines, MIT, no runtime services. Keep it that way.
 ```
 install.sh / uninstall.sh / doctor.sh      macOS entry points
 tests/run-tests.sh                         the regression set (CI runs it)
+.githooks/pre-commit                       opt-in: the fast set, before each commit
 src/banner.swift                           the HUD window (compiled at install time)
 hooks/claude-session-notifier.sh           the dispatcher: stdin JSON -> name -> banner
                                            (registered on Stop AND Notification)
@@ -90,8 +91,15 @@ behind pointing at a deleted script.
 ./uninstall.sh             # remove only our own entries (both events)
 ./tests/run-tests.sh       # regression set; SKIP_SLOW=1 skips the install round trip
 
+git config core.hooksPath .githooks    # once per clone: run the fast set pre-commit
+
 ~/.claude/hooks/bin/claude-banner "text" 6 0     # draw directly (message, seconds, slot)
 ```
+
+`.githooks/pre-commit` fires only when something under `hooks/`, `src/`, `tests/` or a
+top-level script is staged — a hook that runs on README typos trains people to reach for
+`--no-verify`. It is a convenience, not a gate: it is bypassable, it checks the working
+tree rather than the index, and it cannot see whether a window appeared. CI is the gate.
 
 ## Testing
 
